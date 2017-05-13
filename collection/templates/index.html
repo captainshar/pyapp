@@ -1,12 +1,14 @@
+{% extends 'base.html' %}
 {% load staticfiles %}
-<!doctype html>
-<html>
-<head>
+{% load humanize %}
+{% block title %}
 	<title>Sharon's Django/Python App</title>
-	<link rel="stylesheet" href="{% static 'css/style.css' %}" />
-</head>
-<body>
+{% endblock title %}
+{% block content %}
 	<h1>Sharon says hi!</h1>
-	<p>I am a basic website</p>
-</body>
-</html>
+	<p>An RPG I have played: {{ thing|slugify }}</p>
+	<p>There are {{ number|apnumber }} game systems!</p>
+	<p>{% if number %}Number exists!{% endif %}</p>
+	<br />
+	<img src="{% static 'images/marple.jpg' %}" alt="candy hearts"/>
+{% endblock content %}

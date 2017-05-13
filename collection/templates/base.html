@@ -1,0 +1,28 @@
+{% load staticfiles %}
+<!doctype html>
+<html>
+<head>
+	<title><!-- insert our own title later -->
+		{% block title %}
+			Default title from collection/templates/base.html
+		{% endblock title %}
+	</title>
+	<link rel="stylesheet" href="{% static 'css/style.css' %}" />
+	{% block header %}{% endblock header %}
+</head>
+<body>
+	<!-- insert our own body later -->
+	<header>
+		<h1>Live RPG systems Sharon has played or read about</h1>
+		<nav>
+			<ul>
+				<li><a href="{% url 'home' %}">Home</a></li>
+				<li><a href="{% url 'about' %}">About</a></li>
+				<li><a href="{% url 'contact' %}">Contact</a></li>
+			</ul>
+		</nav>
+	</header>
+	{% block content %}{% endblock content %}
+	{% block footer %}{% endblock footer %}
+</body>
+</html>
