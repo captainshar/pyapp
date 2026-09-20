@@ -57,6 +57,115 @@ line out. Same trick as the church.
 
 ---
 
+## What to run it on
+
+**Recommended: a cheap 8–9" Android LCD tablet.** A [Lenovo Tab M9](https://www.gsmarena.com/lenovo_tab_m9-12052.php)
+or [Samsung Galaxy Tab A9](https://www.gsmarena.com/compare.php3?idPhone1=12616&idPhone2=12052)
+runs about $100–150, weighs ~330 g, fits a decent-sized purse, and gives you the
+colour coding, the live word-by-word feel, and Fully Kiosk's boot-to-app
+behaviour with no compromises. Add a kickstand case.
+
+### If e-paper matters more than colour
+
+E Ink is genuinely tempting here — paper-like, no glare in a bright sanctuary,
+battery measured in days. There are three catches, in order of how badly they bite:
+
+1. **Most e-readers are non-starters.** A Kindle or Kobo has no microphone and
+   can't install apps. You need an *Android* e-ink device, which in practice
+   means [Onyx Boox](https://shop.boox.com/). The [Palma 2](https://shop.boox.com/products/palma2)
+   is the one that fits the brief: 6.13", 170 g, dual microphones, Android 13
+   with Google Play, ~$280. It is genuinely pocketable in a way no tablet is.
+2. **Colour does not survive.** Mono e-ink renders the speaker palette as
+   near-identical grays, and colour e-paper (Kaleido) washes hues out well past
+   the point the separation guarantees mean anything. So e-ink mode drops colour
+   entirely and leans on the other two channels — the shape and the spelled-out
+   label — plus the border pattern as a third cue.
+3. **Live captions are the worst possible content for e-paper.** The panel
+   repaints in tens to hundreds of milliseconds and smears when pushed harder.
+   Word-by-word interim results would be an unreadable smudge.
+
+Catch 3 is the one that decides it, and it is fixable: **`?eink=1`** waits for
+each finished line instead of streaming partial words, kills the level meter and
+every transition, and flips to black-on-white. That drops the repaint rate from
+roughly ten a second to one every few seconds, which e-paper handles cleanly in
+Boox's Balanced or Fast mode.
+
+![The same screen in e-paper mode](docs/screenshot-eink.png)
+
+The cost is latency: you see a sentence about a second after it's finished rather
+than watching it assemble. For following a sermon that's fine. For a fast
+four-way lunch conversation it puts her a beat further behind.
+
+**My call:** LCD tablet unless purse-portability beats everything, in which case
+the Palma 2 with `?eink=1` is a real option — just go in knowing you're trading
+colour and immediacy for paper-like readability and a device that fits a coat pocket.
+
+### The connectivity problem nobody thinks about first
+
+Streaming transcription needs internet, and church Wi-Fi is usually either absent
+or a captive portal she'd have to log into. Options, best first:
+
+- **A tablet with LTE and a cheap data SIM** (~$10/month). It just works, forever,
+  with nothing to tap. Worth the extra ~$50 on the hardware.
+- **Her phone's hotspot.** Free, but it's one more thing to switch on, which is
+  exactly the kind of step that flusters.
+- **Go on-device** — see below.
+
+
+---
+
+## What's powering the transcription — and could it run on-device?
+
+Right now: **[Deepgram](https://deepgram.com) `nova-3` streaming over a WebSocket**,
+with `diarize=true` for the speaker labels. Cloud. The server holds the key and
+relays audio so the browser never sees it. Without a key it falls back to the
+browser's own speech recognition, which is also cloud (Chrome ships the audio to
+Google) and has no diarization.
+
+**Could an on-device model do this instead? Partly — and the split is sharp.**
+
+| | On-device today |
+|---|---|
+| **Streaming transcription** | **Solved.** [whisper.cpp](https://github.com/ggerganov/whisper.cpp) or [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)'s streaming Zipformer hit real-time factors under 0.3× on mid-range Android — comfortably faster than speech. |
+| **Streaming speaker labels** | **Not solved.** sherpa-onnx's diarization is explicitly *offline* — it needs the whole recording before it can cluster voices. Real-time diarization is still [active research](https://arxiv.org/pdf/2501.16641), not something you can drop in. |
+
+So going on-device means **giving up the speaker colours** — the exact feature you
+asked for. That's the trade, and it's not a small one.
+
+The second issue is accuracy where it counts. Small on-device models hold up well
+on clean, close audio and degrade much faster than cloud models on the hard case —
+far-field, reverberant, several people talking. Which is precisely her situation.
+
+**But notice how that interacts with the microphone advice above.** If you get the
+church's assistive listening feed, the audio becomes clean, close-mic'd, and
+single-speaker. That is the best case for an on-device model and the case where
+diarization doesn't matter anyway — there's only one person talking. So:
+
+- **Church, with the ALS feed:** on-device would likely be great, and would need
+  no internet at all. Genuinely the better architecture for that one setting.
+- **Lunch and community meetings:** cloud, with diarization. An on-device model
+  here would give you one undifferentiated wall of half-right text.
+
+**The honest catch:** this is a web app, and browsers can't run whisper.cpp at
+usable speed. Going on-device means rewriting it as a native Android app around
+sherpa-onnx or whisper.cpp — a different and considerably larger project. Worth
+doing if the cloud version proves out and the internet dependency turns into the
+thing that keeps failing. Not worth doing first.
+
+### Audio is sent raw, on purpose
+
+The browser's noise suppression, echo cancellation and automatic gain control are
+**off by default**. They're telephony features: AGC flattens the transients an
+acoustic model relies on, and echo cancellation has nothing to cancel when nothing
+is playing. Recognisers do better on raw audio and Deepgram runs its own front-end
+anyway.
+
+If a particular room disagrees, **`?dsp=on`** turns all three back on so you can
+A/B it where it actually matters rather than guessing.
+
+
+---
+
 ## Running it
 
 ```bash
@@ -67,6 +176,13 @@ cp .env.example .env          # add your Deepgram key
 ```
 
 Open `http://localhost:8000`. It starts listening as soon as the page loads.
+
+Two switches, both set once in the kiosk's start URL:
+
+| | |
+|---|---|
+| `?eink=1` | E-paper mode: finished lines only, black on white, nothing animated |
+| `?dsp=on` | Restore the browser's noise suppression / AGC (off by default) |
 
 **Without a `DEEPGRAM_API_KEY`** it still works — it falls back to the speech
 recognition built into Chrome, which is free and needs no setup, but cannot tell

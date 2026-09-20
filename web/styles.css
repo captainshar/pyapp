@@ -264,3 +264,58 @@ body[data-state="paused"] #pause {
   .level i { transition: none; }
   .captions { scroll-behavior: auto; }
 }
+
+/* ---------- e-paper mode (?eink=1) ----------
+   E Ink repaints in tens to hundreds of milliseconds and smears when it is
+   pushed faster, so this mode removes everything that moves: no interim
+   rewrites, no level meter, no transitions. It also flips to black-on-white,
+   because driving a whole panel dark is both slower and throws away the one
+   thing e-paper is good at.
+
+   Colour does not survive here — a mono panel renders these hues as
+   near-identical grays, and colour e-paper washes them out past the point the
+   palette's separation guarantees mean anything. So speaker identity falls
+   back to the two channels that do survive: the shape and the spelled-out
+   label, with the border pattern as a third cue. */
+
+body[data-eink] {
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --ink: #000000;
+  --ink-muted: #000000;
+  --hairline: #000000;
+  color-scheme: light;
+}
+
+body[data-eink] * { transition: none !important; animation: none !important; }
+
+/* The meter is the worst offender: it would repaint ten times a second. */
+body[data-eink] .level,
+body[data-eink] .dot { display: none; }
+
+body[data-eink] .bar { border-bottom: 2px solid #000000; }
+body[data-eink] .controls { border-top: 2px solid #000000; }
+body[data-eink] .status { font-size: 19px; }
+
+/* Identity by shape and label only — every marker inks solid black. */
+body[data-eink] .who,
+body[data-eink] .said,
+body[data-eink] .block.interim .said { color: #000000; }
+
+body[data-eink] .said { font-weight: 600; }
+
+body[data-eink] .block { border-left-color: #000000; border-left-width: 8px; }
+body[data-eink][data-multi] .block:has(use[href="#shape-1"]) { border-left-style: dashed; }
+body[data-eink][data-multi] .block:has(use[href="#shape-2"]) { border-left-style: dotted; }
+body[data-eink][data-multi] .block:has(use[href="#shape-3"]) { border-left-style: double; }
+body[data-eink][data-multi] .block:has(use[href="#shape-4"]) { border-left-style: dashed; border-left-width: 4px; }
+body[data-eink][data-multi] .block:has(use[href="#shape-5"]) { border-left-style: dotted; border-left-width: 4px; }
+
+body[data-eink] .ctl {
+  background: #ffffff;
+  color: #000000;
+  border-color: #000000;
+}
+body[data-eink] .big-button { background: #000000; color: #ffffff; }
+body[data-eink] .curtain { background: #ffffff; }
+body[data-eink] .curtain-body { color: #000000; }

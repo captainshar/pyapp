@@ -9,6 +9,18 @@ const MERGE_MAX_CHARS = 420;  // ...but a monologue still breaks into readable b
 const SIZES = [32, 40, 48, 60, 72, 88, 104];
 const RECONNECT_MS = 1500;
 
+const params = new URLSearchParams(location.search);
+const options = {
+  // E-paper screens repaint far too slowly for word-by-word captions. This mode
+  // trades the live feel for whole finished lines, black on white, no animation.
+  eink: params.get("eink") === "1",
+  // The browser's cleanup (noise suppression, AGC, echo cancellation) is tuned
+  // for phone calls, not for recognisers. It smears the transients an acoustic
+  // model reads, so raw audio is the default and ?dsp=on puts it back for an
+  // A/B in the room that actually matters.
+  dsp: params.get("dsp") === "on",
+};
+
 const els = {
   body: document.body,
   captions: document.getElementById("captions"),
@@ -120,6 +132,10 @@ function scrollToBottom() {
 }
 
 function render(segments, isFinal) {
+  // Interim results rewrite themselves several times a second. On e-paper that
+  // is a smear, so those screens wait for the finished line.
+  if (options.eink && !isFinal) return;
+
   clearInterim();
 
   for (const segment of segments) noteSpeaker(segment.speaker);
@@ -200,11 +216,13 @@ async function startCapture() {
   state.stream = await navigator.mediaDevices.getUserMedia({
     audio: {
       channelCount: 1,
-      // A room full of chatter is the hard case, so let the platform's own
-      // cleanup run before the audio ever leaves the tablet.
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
+      // Off by default: these are telephony features. Echo cancellation has
+      // nothing to cancel here (nothing is playing), and AGC flattens exactly
+      // the transients the recogniser leans on. Deepgram does its own
+      // front-end work on raw audio. ?dsp=on to compare in the real room.
+      echoCancellation: options.dsp,
+      noiseSuppression: options.dsp,
+      autoGainControl: options.dsp,
     },
   });
 
@@ -215,7 +233,11 @@ async function startCapture() {
   const source = state.audioContext.createMediaStreamSource(state.stream);
   state.node = new AudioWorkletNode(state.audioContext, "pcm-worklet");
   state.node.port.onmessage = ({ data }) => {
-    els.levelFill.style.width = Math.min(100, Math.round(data.peak * 140)) + "%";
+    // A bar that moves ten times a second would keep an e-paper panel busy
+    // repainting instead of showing words.
+    if (!options.eink) {
+      els.levelFill.style.width = Math.min(100, Math.round(data.peak * 140)) + "%";
+    }
     if (state.paused) return;
     const socket = state.socket;
     if (socket && socket.readyState === WebSocket.OPEN) socket.send(data.audio);
@@ -445,5 +467,6 @@ try {
 } catch (_) {
   // Storage blocked; fall back to the default size.
 }
+if (options.eink) els.body.dataset.eink = "true";
 applySize();
 boot();
