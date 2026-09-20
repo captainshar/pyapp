@@ -1,0 +1,266 @@
+/* Captions kiosk.
+   Designed to be read across a table by someone with reduced vision: pure
+   black surface, near-white body text, nothing decorative competing with the
+   words. */
+
+:root {
+  color-scheme: dark;
+
+  --surface: #000000;
+  --surface-raised: #17171a;
+  --ink: #ffffff;          /* 21:1 on the surface */
+  --ink-muted: #a9a9b2;    /* 8.6:1 — status text only, never captions */
+  --hairline: #34343a;
+
+  /* Speaker slots. Validated as a set against a #000000 surface with all 15
+     pairs in play: worst CVD separation ΔE 8.8 (deutan), worst normal-vision
+     ΔE 19.8, every slot ≥7:1 contrast. These sit deliberately above the usual
+     chart-mark lightness band — they are read as text by someone with poor
+     eyesight, so brightness beats surface harmony here. Assigned in fixed
+     order and never cycled; a 7th speaker falls back to plain --ink. */
+  --speaker-0: #48d7fe;
+  --speaker-1: #fea5cc;
+  --speaker-2: #e58212;
+  --speaker-3: #18bc71;
+  --speaker-4: #d563fe;
+  --speaker-5: #51f90a;
+
+  --caption-size: 48px;    /* driven by the A-/A+ buttons */
+  --bar-height: 56px;
+  --controls-height: 84px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: none;
+}
+
+body {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  /* Respect notches/rounded corners on a propped-up tablet. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+           env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* ---------- status bar ---------- */
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: var(--bar-height);
+  padding: 0 20px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink-muted);
+  letter-spacing: 0.01em;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--ink-muted);
+  flex: none;
+}
+
+body[data-state="listening"] .dot { background: #51f90a; }
+body[data-state="paused"]    .dot { background: #e58212; }
+body[data-state="error"]     .dot { background: #fea5cc; }
+
+/* A live level meter is the fastest way to answer "is this thing hearing
+   anything?" without reading a word of text. */
+.level {
+  flex: 1;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--surface-raised);
+  overflow: hidden;
+}
+.level i {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: #51f90a;
+  border-radius: 5px;
+  transition: width 90ms linear;
+}
+body[data-state="paused"] .level i,
+body[data-state="error"] .level i { background: var(--hairline); }
+
+/* ---------- captions ---------- */
+
+.captions {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 28px 24px 40px;
+  scrollbar-width: none;
+}
+
+/* Newest words sit at the bottom, the way TV captions do, so her eyes rest in
+   one place instead of chasing text down the screen as it fills up.
+   (`margin-top: auto` rather than `justify-content: flex-end`, which clips the
+   top of an overflowing flex column.) */
+.captions > :first-child { margin-top: auto; }
+.captions::-webkit-scrollbar { display: none; }
+
+.block {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 18px;
+  align-items: start;
+  padding: 0 0 0 18px;
+  margin-bottom: 30px;
+  border-left: 6px solid var(--speaker, var(--ink));
+}
+
+body:not([data-multi]) .who { display: none; }
+body:not([data-multi]) .block { border-left-color: transparent; }
+
+.who {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  color: var(--speaker, var(--ink));
+  font-size: max(18px, calc(var(--caption-size) * 0.42));
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.who svg {
+  width: 1em;
+  height: 1em;
+  fill: currentColor;
+  flex: none;
+}
+
+.said {
+  grid-column: 1 / -1;
+  /* Captions stay white whatever the speaker colour is. Identity lives in the
+     marker above; legibility is never traded for it. */
+  color: var(--ink);
+  font-size: var(--caption-size);
+  font-weight: 500;
+  line-height: 1.32;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+/* Words that may still be revised, dimmed just enough to read as provisional
+   while staying comfortably legible (11.6:1). */
+.block.interim .said { color: #d2d2d8; }
+
+/* ---------- idle hint ---------- */
+
+.hint {
+  position: fixed;
+  inset: var(--bar-height) 0 var(--controls-height) 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  padding: 24px;
+}
+.hint[hidden] { display: none; }
+.hint p {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 28px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* ---------- curtain ---------- */
+
+.curtain {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  background: var(--surface);
+  display: grid;
+  place-items: center;
+  padding: 32px;
+}
+.curtain[hidden] { display: none; }
+
+.curtain-inner { max-width: 22ch; text-align: center; }
+.curtain-title { margin: 0 0 16px; font-size: 44px; font-weight: 700; line-height: 1.2; }
+.curtain-body  { margin: 0 0 40px; font-size: 24px; font-weight: 500; color: var(--ink-muted); line-height: 1.4; }
+
+.big-button {
+  width: 100%;
+  min-height: 96px;
+  padding: 24px 40px;
+  border: none;
+  border-radius: 20px;
+  background: var(--speaker-0);
+  color: #000000;          /* 12.4:1 on that blue */
+  font: inherit;
+  font-size: 30px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.big-button:active { transform: scale(0.98); }
+
+/* ---------- controls ---------- */
+
+.controls {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: center;
+  height: var(--controls-height);
+  padding: 0 20px;
+  border-top: 1px solid var(--hairline);
+}
+
+.ctl {
+  min-width: 96px;
+  height: 60px;
+  padding: 0 22px;
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 3px;
+  border: 2px solid var(--hairline);
+  border-radius: 14px;
+  background: var(--surface-raised);
+  color: var(--ink);
+  font: inherit;
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ctl .big { font-size: 30px; }
+.ctl small { font-size: 18px; }
+.ctl.wide { min-width: 150px; font-size: 24px; }
+.ctl:active { background: #26262b; }
+
+body[data-state="paused"] #pause {
+  background: var(--speaker-2);
+  border-color: var(--speaker-2);
+  color: #000000;          /* 7.5:1 on that amber */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .level i { transition: none; }
+  .captions { scroll-behavior: auto; }
+}
