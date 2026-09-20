@@ -9,6 +9,17 @@ const MERGE_MAX_CHARS = 420;  // ...but a monologue still breaks into readable b
 const SIZES = [32, 40, 48, 60, 72, 88, 104];
 const RECONNECT_MS = 1500;
 
+// A feed driven far past full scale transcribes as mush. Warn only on sustained
+// clipping so a single door slam doesn't trip it.
+const CLIP_LEVEL = 0.985;
+const CLIP_FRAMES_TO_WARN = 12;   // ~0.75s of continuous clipping
+const CLIP_FRAMES_TO_CLEAR = 45;  // ~3s clean before the warning goes away
+
+// Labels a platform gives a microphone that isn't the one built into the slab.
+// Anything plugged in was plugged in deliberately, so it wins by default.
+const EXTERNAL_HINTS = /usb|headset|wired|external|dock|interface|line|audio device|analog/i;
+const BUILTIN_HINTS = /built-?in|internal|default|back|front|bottom|top/i;
+
 const params = new URLSearchParams(location.search);
 const options = {
   // E-paper screens repaint far too slowly for word-by-word captions. This mode
@@ -32,6 +43,12 @@ const els = {
   curtainTitle: document.getElementById("curtainTitle"),
   curtainBody: document.getElementById("curtainBody"),
   curtainButton: document.getElementById("curtainButton"),
+  micButton: document.getElementById("micButton"),
+  micName: document.getElementById("micName"),
+  tooLoud: document.getElementById("tooLoud"),
+  picker: document.getElementById("picker"),
+  micList: document.getElementById("micList"),
+  pickerClose: document.getElementById("pickerClose"),
   pause: document.getElementById("pause"),
   bigger: document.getElementById("bigger"),
   smaller: document.getElementById("smaller"),
@@ -53,6 +70,12 @@ const state = {
   blocks: 0,
   sizeIndex: 2,
   seenSpeakers: new Set(),
+  deviceId: null,        // null = let the platform pick
+  pinnedDeviceId: null,  // set once she chooses by hand; auto-switching stops
+  devices: [],
+  clipRun: 0,
+  cleanRun: 0,
+  clipping: false,
 };
 
 /* ---------- speaker identity ---------- */
@@ -210,12 +233,113 @@ function applySize() {
   }
 }
 
+/* ---------- microphone selection ---------- */
+
+function micLabel(device, index) {
+  // Labels are empty until permission is granted, and some platforms never
+  // fill them in at all.
+  return device.label || `Microphone ${index + 1}`;
+}
+
+function scoreDevice(device, index) {
+  const label = micLabel(device, index);
+  if (EXTERNAL_HINTS.test(label)) return 2;
+  if (BUILTIN_HINTS.test(label)) return 0;
+  return 1;
+}
+
+// The whole point of the plug-in-a-better-mic advice is that plugging it in has
+// to be the entire interaction. So anything external wins automatically.
+function preferredDevice(devices) {
+  let best = null;
+  let bestScore = -1;
+  devices.forEach((device, index) => {
+    const score = scoreDevice(device, index);
+    if (score > bestScore) { best = device; bestScore = score; }
+  });
+  return best;
+}
+
+async function refreshDevices() {
+  if (!navigator.mediaDevices.enumerateDevices) return;
+  const all = await navigator.mediaDevices.enumerateDevices();
+  state.devices = all.filter((d) => d.kind === "audioinput" && d.deviceId !== "communications");
+  showMicName();
+}
+
+function showMicName() {
+  const index = state.devices.findIndex((d) => d.deviceId === state.deviceId);
+  const device = index >= 0 ? state.devices[index] : null;
+  const name = device ? micLabel(device, index) : "Microphone";
+  // Platform labels are verbose ("Headset Microphone (USB Audio Device)").
+  // The first couple of words carry the meaning at a glance.
+  els.micName.textContent = name.replace(/\s*\(.*\)\s*$/, "").slice(0, 28);
+  // The browser-speech fallback opens its own capture and ignores the device we
+  // picked, so offering a picker there would be a lie. Deepgram gets the audio
+  // we actually chose, so it gets the control.
+  els.micButton.hidden = state.engine !== "deepgram" || state.devices.length < 1;
+}
+
+async function switchTo(deviceId) {
+  state.deviceId = deviceId;
+  resetClipping();
+  stopCapture();
+  await startCapture();
+  await refreshDevices();
+}
+
+function openPicker() {
+  els.micList.replaceChildren();
+  state.devices.forEach((device, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "mic-option" + (device.deviceId === state.deviceId ? " current" : "");
+    button.textContent = micLabel(device, index);
+    button.onclick = async () => {
+      // A deliberate choice outranks auto-detection from here on.
+      state.pinnedDeviceId = device.deviceId;
+      els.picker.hidden = true;
+      await switchTo(device.deviceId);
+    };
+    els.micList.appendChild(button);
+  });
+  els.picker.hidden = false;
+}
+
+/* ---------- clipping ---------- */
+
+function resetClipping() {
+  state.clipRun = 0;
+  state.cleanRun = 0;
+  state.clipping = false;
+  els.tooLoud.hidden = true;
+}
+
+function watchLevel(peak) {
+  if (peak >= CLIP_LEVEL) {
+    state.clipRun += 1;
+    state.cleanRun = 0;
+    if (!state.clipping && state.clipRun >= CLIP_FRAMES_TO_WARN) {
+      state.clipping = true;
+      els.tooLoud.hidden = false;
+    }
+  } else {
+    state.cleanRun += 1;
+    state.clipRun = 0;
+    if (state.clipping && state.cleanRun >= CLIP_FRAMES_TO_CLEAR) {
+      state.clipping = false;
+      els.tooLoud.hidden = true;
+    }
+  }
+}
+
 /* ---------- audio capture ---------- */
 
 async function startCapture() {
   state.stream = await navigator.mediaDevices.getUserMedia({
     audio: {
       channelCount: 1,
+      ...(state.deviceId ? { deviceId: { exact: state.deviceId } } : {}),
       // Off by default: these are telephony features. Echo cancellation has
       // nothing to cancel here (nothing is playing), and AGC flattens exactly
       // the transients the recogniser leans on. Deepgram does its own
@@ -233,6 +357,7 @@ async function startCapture() {
   const source = state.audioContext.createMediaStreamSource(state.stream);
   state.node = new AudioWorkletNode(state.audioContext, "pcm-worklet");
   state.node.port.onmessage = ({ data }) => {
+    watchLevel(data.peak);
     // A bar that moves ten times a second would keep an e-paper panel busy
     // repainting instead of showing words.
     if (!options.eink) {
@@ -245,6 +370,10 @@ async function startCapture() {
   source.connect(state.node);
   // Keep the worklet pulling without putting the microphone on the speakers.
   state.node.connect(state.audioContext.destination);
+
+  // Record what we actually got — an `exact` deviceId can still be overridden.
+  const settings = state.stream.getAudioTracks()[0]?.getSettings?.() || {};
+  if (settings.deviceId) state.deviceId = settings.deviceId;
 }
 
 function stopCapture() {
@@ -405,6 +534,14 @@ async function boot() {
 
   hideCurtain();
   keepAwake();
+  await refreshDevices();
+
+  // If something better was already plugged in before she switched it on, move
+  // to it now — labels are only readable once permission has been granted.
+  const preferred = preferredDevice(state.devices);
+  if (preferred && preferred.deviceId !== state.deviceId && scoreDevice(preferred, 0) === 2) {
+    await switchTo(preferred.deviceId);
+  }
 
   if (state.engine === "deepgram") connectSocket();
   else fallbackToWebSpeech();
@@ -447,6 +584,27 @@ document.addEventListener("pointerdown", function once() {
   const request = document.documentElement.requestFullscreen;
   if (request) request.call(document.documentElement).catch(() => {});
 }, { once: true });
+
+// Plugging a microphone in mid-service should be the whole interaction: no
+// menus, no restart. Chrome fires this on hot-plug, so follow it.
+if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+  navigator.mediaDevices.addEventListener("devicechange", async () => {
+    if (!state.stream) return;              // not capturing yet
+    if (state.pinnedDeviceId) return;       // she chose by hand; respect it
+    await refreshDevices();
+    const preferred = preferredDevice(state.devices);
+    if (!preferred || preferred.deviceId === state.deviceId) return;
+    const index = state.devices.indexOf(preferred);
+    // Only follow a plug-in, never demote to the built-in mic on a stray event.
+    if (scoreDevice(preferred, index) < 2) return;
+    await switchTo(preferred.deviceId);
+    setState("listening", "Switched microphone");
+    setTimeout(() => { if (!state.paused) setState("listening", "Listening"); }, 2500);
+  });
+}
+
+els.micButton.addEventListener("click", openPicker);
+els.pickerClose.addEventListener("click", () => { els.picker.hidden = true; });
 
 // A wake lock is released whenever the tab is backgrounded; take it again.
 document.addEventListener("visibilitychange", () => {

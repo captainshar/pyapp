@@ -44,7 +44,9 @@ html, body {
 
 body {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  /* bar, too-loud banner, captions, controls. The captions take the slack; the
+     banner is auto so it collapses to nothing while hidden. */
+  grid-template-rows: auto auto 1fr auto;
   /* Respect notches/rounded corners on a propped-up tablet. */
   padding: env(safe-area-inset-top) env(safe-area-inset-right)
            env(safe-area-inset-bottom) env(safe-area-inset-left);
@@ -319,3 +321,80 @@ body[data-eink] .ctl {
 body[data-eink] .big-button { background: #000000; color: #ffffff; }
 body[data-eink] .curtain { background: #ffffff; }
 body[data-eink] .curtain-body { color: #000000; }
+
+/* ---------- microphone ---------- */
+
+/* Which mic is live is the single most useful diagnostic in the room: if the
+   cable didn't take, this is what says so. */
+.mic {
+  flex: none;
+  max-width: 34vw;
+  padding: 6px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.mic[hidden] { display: none; }
+
+.too-loud {
+  padding: 14px 20px;
+  background: var(--speaker-2);
+  color: #000000;          /* 7.5:1 on that amber */
+  font-size: 22px;
+  font-weight: 700;
+  text-align: center;
+}
+.too-loud[hidden] { display: none; }
+
+.picker {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: rgba(0, 0, 0, 0.92);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.picker[hidden] { display: none; }
+
+.picker-inner { width: min(560px, 100%); }
+.picker-title { margin: 0 0 20px; font-size: 30px; font-weight: 700; text-align: center; }
+
+.mic-option {
+  display: block;
+  width: 100%;
+  min-height: 76px;
+  margin-bottom: 12px;
+  padding: 18px 22px;
+  border: 2px solid var(--hairline);
+  border-radius: 14px;
+  background: var(--surface-raised);
+  color: var(--ink);
+  font: inherit;
+  font-size: 22px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.mic-option.current { border-color: var(--speaker-0); }
+#pickerClose { width: 100%; margin-top: 12px; }
+
+body[data-eink] .mic,
+body[data-eink] .mic-option {
+  background: #ffffff;
+  color: #000000;
+  border-color: #000000;
+}
+body[data-eink] .picker { background: #ffffff; }
+body[data-eink] .too-loud {
+  background: #000000;
+  color: #ffffff;
+}

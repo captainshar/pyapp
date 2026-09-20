@@ -31,8 +31,18 @@
     <span class="dot" id="dot"></span>
     <span id="statusText">Starting&hellip;</span>
   </div>
+  <button class="mic" id="micButton" type="button" aria-haspopup="dialog">
+    <span id="micName">Microphone</span>
+  </button>
   <div class="level" aria-hidden="true"><i id="levelFill"></i></div>
 </header>
+
+<!-- Sustained clipping means the input is far too hot — almost always an
+     assistive-listening or mixer feed plugged straight into a mic input. The
+     transcript turns to mush and nothing else on screen would say why. -->
+<div class="too-loud" id="tooLoud" hidden role="alert">
+  Sound is too loud to read &mdash; turn the volume down on whatever is plugged in.
+</div>
 
 <main id="captions" class="captions" aria-live="polite" aria-label="Live captions"></main>
 
@@ -47,6 +57,16 @@
     <p class="curtain-title" id="curtainTitle"></p>
     <p class="curtain-body" id="curtainBody"></p>
     <button class="big-button" id="curtainButton" type="button"></button>
+  </div>
+</div>
+
+<!-- Microphone picker. Auto-selection is usually right; this is the escape
+     hatch when it isn't, and the proof of which mic is actually live. -->
+<div class="picker" id="picker" hidden role="dialog" aria-modal="true" aria-label="Choose microphone">
+  <div class="picker-inner">
+    <p class="picker-title">Which microphone?</p>
+    <div id="micList"></div>
+    <button class="ctl wide" id="pickerClose" type="button">Close</button>
   </div>
 </div>
 

@@ -32,38 +32,90 @@ If quality is fine but the ritual of unlocking and finding the app trips her up,
 deploy this repo, which fixes exactly that. If quality is *not* fine, no app will
 save you and you should read the next section carefully.
 
-## The part that matters more than the software
+## The microphone decides everything — including which device to buy
 
-**In a reverberant room, the microphone is the bottleneck, not the speech
-recognition.** A tablet mic thirty feet from a pulpit picks up mostly room echo and
-HVAC, and every app on that list will produce mush from it. This is the single
-biggest factor in whether this works.
+**In a reverberant room the microphone is the bottleneck, not the speech
+recognition.** A tablet mic thirty feet from a pulpit picks up mostly room echo
+and HVAC, and every app in that table will produce mush from it. No model fixes
+bad input.
 
-In rough order of how much difference they make:
+Which means the device question is really *"what can I plug a microphone into?"*
+— not screen size, not e-ink versus LCD. Sort the microphone out first, then buy
+whatever can accept it.
+
+### Getting good audio, in order of how much it helps
 
 1. **Ask the church for their assistive listening receiver.** Most assembly
    spaces have one, and the ADA requires those systems to expose a standard
    headphone jack. That jack carries the pulpit microphone directly — no room, no
-   echo, no distance. Run it into the tablet through a cheap TRRS adapter and the
-   transcript quality goes from "unusable" to "near perfect." This is the single
-   highest-leverage thing on this page, and it's free. Ask the sound desk.
-2. **For lunch and small groups, put a mic on the table.** Any small USB or
-   lightning conference mic at 1–3 feet beats a tablet at 6 feet by a wide margin.
-3. **Point the tablet at the talker, not at the room**, and get it as close as is
-   polite.
+   echo, no distance. This is far and away the highest-leverage thing on this
+   page, and it's free. Ask the sound desk. **But see the level warning below —
+   you can't just plug it in.**
+2. **For lunch and small groups, put a mic on the table.** Any small USB
+   conference or boundary mic at 1–3 feet beats a tablet at six feet by a wide
+   margin.
+3. **Point the tablet at the talker, not at the room.**
+4. **Don't use a Bluetooth mic.** The Bluetooth headset profile is narrowband —
+   it throws away the high frequencies that distinguish consonants, which is
+   exactly what a recogniser needs. A $15 wired mic beats a $150 Bluetooth one
+   here. Wired or USB only.
 
-For the community meetings, it's worth asking whether they have a PA system with a
-line out. Same trick as the church.
+### The level trap (I got this wrong at first)
+
+A headphone or line output runs **40–60 dB hotter than a microphone input
+expects** — [line level is around 1 V, mic level is 1–10 mV](https://en.wikipedia.org/wiki/Line_level).
+Plugging an assistive-listening receiver straight into a tablet's mic input
+clips it into distortion, and the transcript degrades to nonsense. A plain TRRS
+adapter is *not* enough. Either:
+
+- **Turn the receiver's volume most of the way down** — free, works, fiddly; or
+- **Use an attenuating cable** such as a [Headset Buddy Mic-Line](https://www.headsetbuddy.com/mic-line-line-level-audio-input-adapter-for-iphone-smartphones/)
+  (~$25), which is built for exactly this.
+
+The nasty part is that clipping is invisible — it just quietly ruins the words.
+So the app watches for it and says so in plain language:
+
+![The too-loud warning](docs/screenshot-too-loud.png)
+
+### What the app does about microphones
+
+- **Plug one in and it switches by itself.** Anything external was connected on
+  purpose, so it wins automatically — mid-session, no menus, no restart. The
+  status bar names whichever mic is actually live, which is the one diagnostic
+  that tells you the cable took.
+- **Tap that name to choose by hand** if auto-detection guesses wrong. A manual
+  choice is then respected and won't be overridden.
+- **The level meter** answers "is this thing hearing anything at all?" before
+  a single word has to be read.
+
+One limitation: this only applies with a Deepgram key. The free browser-speech
+fallback opens its own capture and ignores the device you pick, so the picker
+hides itself there rather than lying to you.
+
 
 ---
 
 ## What to run it on
 
-**Recommended: a cheap 8–9" Android LCD tablet.** A [Lenovo Tab M9](https://www.gsmarena.com/lenovo_tab_m9-12052.php)
-or [Samsung Galaxy Tab A9](https://www.gsmarena.com/compare.php3?idPhone1=12616&idPhone2=12052)
-runs about $100–150, weighs ~330 g, fits a decent-sized purse, and gives you the
-colour coding, the live word-by-word feel, and Fully Kiosk's boot-to-app
-behaviour with no compromises. Add a kickstand case.
+Now that the microphone is settled, the device just has to accept it. Two
+requirements, in order:
+
+1. **A working audio input path.** Check before you buy — this is where cheap
+   tablets quietly fail. The [Galaxy Tab A9 has no 3.5 mm jack at all](https://www.mobilefun.com/official-samsung-usb-c-to-3-5mm-audio-aux-adapter-for-samsung-galaxy-tab-a9-98151),
+   so everything has to go through USB-C. That's fine *if* the tablet supports
+   USB host mode and USB Audio Class, which not every budget model does.
+2. **A screen she can read**, which is a much easier bar to clear.
+
+**Safest bet: any budget Android tablet plus a powered USB-C audio adapter with
+a DAC chip** (an "active" adapter, not a passive analog one — passive adapters
+rely on the tablet doing analog-over-USB-C, which many don't). That gives you a
+3.5 mm mic input that works regardless of what the tablet has on it, and it's
+the same adapter whether you're taking the ALS feed or a wired lav.
+
+For the tablet itself, a **[Lenovo Tab M9](https://www.gsmarena.com/lenovo_tab_m9-12052.php)
+or [Galaxy Tab A9](https://www.gsmarena.com/compare.php3?idPhone1=12616&idPhone2=12052)**
+at $100–150 and ~330 g is plenty. Get the **LTE variant** if one exists — see
+the connectivity note below. Add a kickstand case.
 
 ### If e-paper matters more than colour
 
