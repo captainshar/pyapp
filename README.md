@@ -88,34 +88,77 @@ So the app watches for it and says so in plain language:
 - **The level meter** answers "is this thing hearing anything at all?" before
   a single word has to be read.
 
-One limitation: this only applies with a Deepgram key. The free browser-speech
-fallback opens its own capture and ignores the device you pick, so the picker
-hides itself there rather than lying to you.
+Two limitations, both real: the free browser-speech fallback opens its own
+capture and ignores the device you pick, and Chrome on Android frequently
+ignores it too. The picker hides itself in both cases rather than lying to you —
+see the Android note under *What to run it on*.
 
 
 ---
 
 ## What to run it on
 
-Now that the microphone is settled, the device just has to accept it. Two
-requirements, in order:
+The decisive spec is **"can it take an external microphone?"** — and it is both
+poorly documented and frequently *no*. Two traps, both verified the hard way:
 
-1. **A working audio input path.** Check before you buy — this is where cheap
-   tablets quietly fail. The [Galaxy Tab A9 has no 3.5 mm jack at all](https://www.mobilefun.com/official-samsung-usb-c-to-3-5mm-audio-aux-adapter-for-samsung-galaxy-tab-a9-98151),
-   so everything has to go through USB-C. That's fine *if* the tablet supports
-   USB host mode and USB Audio Class, which not every budget model does.
-2. **A screen she can read**, which is a much easier bar to clear.
+**Trap 1: a 3.5 mm jack on a tablet is usually output-only.** It plays audio; it
+will not record from a headset. Owners report the
+[Galaxy Tab A simply cannot use an external mic through the jack at all](https://forums.androidcentral.com/threads/audio-into-samsung-galaxy-tab-a-via-trrs-jack-plug.1006196/)
+— it falls back to the internal mic whatever you plug in. The
+[Galaxy Tab A9 has no jack in the first place](https://www.mobilefun.com/official-samsung-usb-c-to-3-5mm-audio-aux-adapter-for-samsung-galaxy-tab-a9-98151).
+The [Lenovo Tab M9 does have one](https://psref.lenovo.com/Product/LenovoTablets/Tab_M9),
+but Lenovo's sheet doesn't say whether it's a mic-capable combo jack, and no
+reviewer tests this. **Don't plan around the jack.**
 
-**Safest bet: any budget Android tablet plus a powered USB-C audio adapter with
-a DAC chip** (an "active" adapter, not a passive analog one — passive adapters
-rely on the tablet doing analog-over-USB-C, which many don't). That gives you a
-3.5 mm mic input that works regardless of what the tablet has on it, and it's
-the same adapter whether you're taking the ALS feed or a wired lav.
+**Trap 2: phones are built for headsets; budget tablets aren't.** That whole
+audio-input path exists on a phone because of phone calls. On a cheap tablet it's
+often simply absent.
 
-For the tablet itself, a **[Lenovo Tab M9](https://www.gsmarena.com/lenovo_tab_m9-12052.php)
-or [Galaxy Tab A9](https://www.gsmarena.com/compare.php3?idPhone1=12616&idPhone2=12052)**
-at $100–150 and ~330 g is plenty. Get the **LTE variant** if one exists — see
-the connectivity note below. Add a kickstand case.
+### So: go through USB-C, not the jack
+
+Android [detects a USB audio peripheral and routes capture to it automatically](https://source.android.com/docs/core/audio/usb),
+at the system level. That's the reliable path, and it sidesteps both traps. You
+need two things:
+
+- **A tablet with USB host / OTG support.** This is the one spec to check.
+- **A USB-C audio adapter with a mic input** — a [Movo UCMA-2](https://www.movophoto.com/products/ucma-2-trrs-usb-c)
+  (~$25) or similar puts the analog-to-digital conversion in the dongle, so the
+  tablet's own audio hardware stops mattering. Note it takes TRRS (4-pole), not
+  TRS, so check what your mic or attenuator cable ends in.
+
+Of everything surveyed, the **[Boox Palma 2](https://onyxboox.com/boox_palma2) is
+the only device that documents this outright** — its USB-C port explicitly
+supports OTG *and* audio. That's an unexpected point in favour of the e-ink
+option, given `?eink=1` already exists.
+
+### Buy it where you can return it
+
+The spec that decides this isn't on any spec sheet and isn't in any review. So
+treat the first week as the test, and make it a five-minute one:
+
+1. Open the app on the tablet and watch the level meter move.
+2. Plug the USB-C adapter and mic in.
+3. **The meter should keep moving, and the microphone name in the status bar
+   should change.** If it doesn't, the tablet isn't routing external audio —
+   return it.
+
+A **[Lenovo Tab M9](https://psref.lenovo.com/Product/LenovoTablets/Tab_M9)** at
+~$100–150 and ~330 g is the sensible starting bet (jack present, M-series
+supports USB-C docking). Get the LTE variant if one exists — see the
+connectivity note. If the tablet fails the test above, a **mid-range Android
+phone is the fallback that almost certainly works**, because headset input is a
+first-class feature there.
+
+### One thing the app can't do on Android
+
+Chrome on Android [often exposes a single "default" microphone and silently
+ignores an explicit device choice](https://github.com/webrtc/samples/issues/1498).
+So the in-app picker is best-effort: it tries, falls back cleanly if the platform
+refuses, and hides itself rather than pretending a choice took effect. This
+costs nothing in practice, because Android's own system-level routing already
+does the right thing when you plug something in — but it does mean **the
+plug-it-in behaviour is Android's doing, not the app's**, and a device that
+routes badly can't be fixed in software here.
 
 ### If e-paper matters more than colour
 

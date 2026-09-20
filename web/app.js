@@ -76,6 +76,7 @@ const state = {
   clipRun: 0,
   cleanRun: 0,
   clipping: false,
+  selectionHonoured: true,
 };
 
 /* ---------- speaker identity ---------- */
@@ -277,7 +278,8 @@ function showMicName() {
   // The browser-speech fallback opens its own capture and ignores the device we
   // picked, so offering a picker there would be a lie. Deepgram gets the audio
   // we actually chose, so it gets the control.
-  els.micButton.hidden = state.engine !== "deepgram" || state.devices.length < 1;
+  els.micButton.hidden =
+    state.engine !== "deepgram" || state.devices.length < 1 || !state.selectionHonoured;
 }
 
 async function switchTo(deviceId) {
@@ -335,20 +337,41 @@ function watchLevel(peak) {
 
 /* ---------- audio capture ---------- */
 
+async function openMicrophone(deviceId) {
+  const audio = {
+    channelCount: 1,
+    // Off by default: these are telephony features. Echo cancellation has
+    // nothing to cancel here (nothing is playing), and AGC flattens exactly the
+    // transients the recogniser leans on. Deepgram does its own front-end work
+    // on raw audio. ?dsp=on to compare in the real room.
+    echoCancellation: options.dsp,
+    noiseSuppression: options.dsp,
+    autoGainControl: options.dsp,
+  };
+
+  if (!deviceId) return navigator.mediaDevices.getUserMedia({ audio });
+
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      audio: { ...audio, deviceId: { exact: deviceId } },
+    });
+  } catch (error) {
+    // Android is the case that matters: Chrome there often exposes a single
+    // "default" input and rejects or quietly ignores an exact deviceId. Android
+    // routes a plugged-in USB or wired mic at the system level anyway, so the
+    // unconstrained request gets the right audio. Never let a failed preference
+    // cost us a working microphone.
+    if (error && (error.name === "OverconstrainedError" || error.name === "NotFoundError")) {
+      state.selectionHonoured = false;
+      return navigator.mediaDevices.getUserMedia({ audio });
+    }
+    throw error;
+  }
+}
+
 async function startCapture() {
-  state.stream = await navigator.mediaDevices.getUserMedia({
-    audio: {
-      channelCount: 1,
-      ...(state.deviceId ? { deviceId: { exact: state.deviceId } } : {}),
-      // Off by default: these are telephony features. Echo cancellation has
-      // nothing to cancel here (nothing is playing), and AGC flattens exactly
-      // the transients the recogniser leans on. Deepgram does its own
-      // front-end work on raw audio. ?dsp=on to compare in the real room.
-      echoCancellation: options.dsp,
-      noiseSuppression: options.dsp,
-      autoGainControl: options.dsp,
-    },
-  });
+  state.selectionHonoured = true;
+  state.stream = await openMicrophone(state.deviceId);
 
   state.audioContext = new AudioContext();
   await state.audioContext.audioWorklet.addModule("/pcm-worklet.js");
@@ -371,9 +394,12 @@ async function startCapture() {
   // Keep the worklet pulling without putting the microphone on the speakers.
   state.node.connect(state.audioContext.destination);
 
-  // Record what we actually got — an `exact` deviceId can still be overridden.
+  // Report what we actually got, never what we asked for.
   const settings = state.stream.getAudioTracks()[0]?.getSettings?.() || {};
-  if (settings.deviceId) state.deviceId = settings.deviceId;
+  if (settings.deviceId) {
+    if (state.deviceId && settings.deviceId !== state.deviceId) state.selectionHonoured = false;
+    state.deviceId = settings.deviceId;
+  }
 }
 
 function stopCapture() {
